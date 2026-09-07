@@ -1,4 +1,4 @@
-package com.training.librarymanagementtraining.serviceimpl;
+ package com.training.librarymanagementtraining.serviceimpl;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import com.training.librarymanagementtraining.dto.BorrowingRequest;
 import com.training.librarymanagementtraining.dto.BorrowingResponse;
 import com.training.librarymanagementtraining.entity.Borrowing;
+import com.training.librarymanagementtraining.exception.BorrowingNotFoundException;
 import com.training.librarymanagementtraining.repository.BorrowingRepository;
 import com.training.librarymanagementtraining.service.BorrowingService;
 
@@ -24,6 +25,8 @@ public class BorrowingServiceImpl implements BorrowingService {
 
     @Override
     public BorrowingResponse createBorrowing(BorrowingRequest request) {
+
+        validateBorrowingRequest(request);
 
         Borrowing borrowing = new Borrowing();
 
@@ -59,7 +62,8 @@ public class BorrowingServiceImpl implements BorrowingService {
 
         Borrowing borrowing = borrowingRepository.findById(id)
                 .orElseThrow(() ->
-                        new RuntimeException("Borrowing not found with id: " + id));
+                        new BorrowingNotFoundException(
+                                "Borrowing not found with id: " + id));
 
         return mapToResponse(borrowing);
     }
@@ -67,9 +71,12 @@ public class BorrowingServiceImpl implements BorrowingService {
     @Override
     public BorrowingResponse updateBorrowing(Long id, BorrowingRequest request) {
 
+        validateBorrowingRequest(request);
+
         Borrowing borrowing = borrowingRepository.findById(id)
                 .orElseThrow(() ->
-                        new RuntimeException("Borrowing not found with id: " + id));
+                        new BorrowingNotFoundException(
+                                "Borrowing not found with id: " + id));
 
         borrowing.setMemberId(request.getMemberId());
         borrowing.setBookId(request.getBookId());
@@ -93,7 +100,7 @@ public class BorrowingServiceImpl implements BorrowingService {
     public void deleteBorrowing(Long id) {
 
         if (!borrowingRepository.existsById(id)) {
-            throw new RuntimeException(
+            throw new BorrowingNotFoundException(
                     "Borrowing not found with id: " + id);
         }
 
@@ -107,6 +114,50 @@ public class BorrowingServiceImpl implements BorrowingService {
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
+    }
+
+    private void validateBorrowingRequest(BorrowingRequest request) {
+
+        if (request.getMemberId() == null) {
+            throw new IllegalArgumentException("Member ID cannot be null");
+        }
+
+        if (request.getBookId() == null) {
+            throw new IllegalArgumentException("Book ID cannot be null");
+        }
+
+        if (request.getBookName() == null || request.getBookName().isBlank()) {
+            throw new IllegalArgumentException("Book name cannot be empty");
+        }
+
+        if (request.getBookPrice() == null ||
+                request.getBookPrice().compareTo(BigDecimal.ZERO) < 0) {
+
+            throw new IllegalArgumentException(
+                    "Book price cannot be negative");
+        }
+
+        if (request.getBorrowedDate() == null) {
+            throw new IllegalArgumentException(
+                    "Borrowed date cannot be null");
+        }
+
+        if (request.getDueDate() == null) {
+            throw new IllegalArgumentException(
+                    "Due date cannot be null");
+        }
+
+        if (request.getDueDate().isBefore(request.getBorrowedDate())) {
+            throw new IllegalArgumentException(
+                    "Due date cannot be before borrowed date");
+        }
+
+        if (request.getPenaltyPerDay() == null ||
+                request.getPenaltyPerDay().compareTo(BigDecimal.ZERO) < 0) {
+
+            throw new IllegalArgumentException(
+                    "Penalty per day cannot be negative");
+        }
     }
 
     private void calculatePenalty(Borrowing borrowing) {
@@ -161,3 +212,4 @@ public class BorrowingServiceImpl implements BorrowingService {
         return response;
     }
 }
+
