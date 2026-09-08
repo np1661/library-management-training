@@ -36,8 +36,7 @@ public class AuthController {
 
     @PostMapping("/register-member")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<String> registerMember(
-            @Valid @RequestBody RegisterMemberRequest request) {
+    public ResponseEntity<String> registerMember(@Valid @RequestBody RegisterMemberRequest request) {
 
         authService.registerMember(request);
 

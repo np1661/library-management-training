@@ -12,9 +12,7 @@ import com.training.librarymanagementtraining.repository.UserRepository;
 public class DataInitializer {
 
     @Bean
-    CommandLineRunner createAdminUser(
-            UserRepository userRepository,
-            PasswordEncoder passwordEncoder) {
+    CommandLineRunner createAdminUser(UserRepository userRepository,PasswordEncoder passwordEncoder) {
 
         return args -> {
 
@@ -23,15 +21,13 @@ public class DataInitializer {
                 User admin = new User();
 
                 admin.setUsername("admin");
-                admin.setPassword(
-                        passwordEncoder.encode("admin123"));
+                admin.setPassword(passwordEncoder.encode("admin123"));
                 admin.setRole("ADMIN");
                 admin.setMemberId(null);
 
                 userRepository.save(admin);
 
-                System.out.println(
-                        "Default ADMIN user created");
+                System.out.println("Default ADMIN user created");
             }
         };
     }
