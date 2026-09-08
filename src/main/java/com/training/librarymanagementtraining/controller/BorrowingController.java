@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
+import org.springframework.security.core.Authentication;
 import com.training.librarymanagementtraining.dto.BorrowingRequest;
 import com.training.librarymanagementtraining.dto.BorrowingResponse;
 import com.training.librarymanagementtraining.service.BorrowingService;
@@ -79,5 +79,20 @@ public class BorrowingController {
 
         return ResponseEntity.ok(
                 borrowingService.searchByStatus(status));
+    }
+
+    @PostMapping("/borrow/{bookId}")
+    public ResponseEntity<BorrowingResponse> borrowBook(
+            @PathVariable Long bookId,
+            Authentication authentication) {
+
+        BorrowingResponse response =
+                borrowingService.borrowBook(
+                        bookId,
+                        authentication.getName());
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(response);
     }
 }

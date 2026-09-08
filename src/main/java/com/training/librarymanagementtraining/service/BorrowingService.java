@@ -18,4 +18,10 @@ public interface BorrowingService {
     void deleteBorrowing(Long id);
 
     List<BorrowingResponse> searchByStatus(String status);
+
+    BorrowingResponse borrowBook(Long bookId, String username);
+
+    BorrowingResponse returnBook(Long borrowingId, String username);
+
+    List<BorrowingResponse> getMyBorrowings(String username);
 }
