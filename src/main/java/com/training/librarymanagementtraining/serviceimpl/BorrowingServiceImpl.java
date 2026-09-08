@@ -1,4 +1,4 @@
-package com.training.librarymanagementtraining.serviceimpl;
+ package com.training.librarymanagementtraining.serviceimpl;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -10,20 +10,37 @@ import org.springframework.stereotype.Service;
 import com.training.librarymanagementtraining.dto.BorrowingRequest;
 import com.training.librarymanagementtraining.dto.BorrowingResponse;
 import com.training.librarymanagementtraining.entity.Borrowing;
+import com.training.librarymanagementtraining.exception.BorrowingNotFoundException;
 import com.training.librarymanagementtraining.repository.BorrowingRepository;
 import com.training.librarymanagementtraining.service.BorrowingService;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.training.librarymanagementtraining.entity.Book;
+import com.training.librarymanagementtraining.entity.User;
+import com.training.librarymanagementtraining.repository.BookRepository;
+import com.training.librarymanagementtraining.repository.UserRepository;
 
 @Service
 public class BorrowingServiceImpl implements BorrowingService {
 
     private final BorrowingRepository borrowingRepository;
+    private final BookRepository bookRepository;
+    private final UserRepository userRepository;
 
-    public BorrowingServiceImpl(BorrowingRepository borrowingRepository) {
+    public BorrowingServiceImpl(
+            BorrowingRepository borrowingRepository,
+            BookRepository bookRepository,
+            UserRepository userRepository) {
+
         this.borrowingRepository = borrowingRepository;
+        this.bookRepository = bookRepository;
+        this.userRepository = userRepository;
     }
 
     @Override
     public BorrowingResponse createBorrowing(BorrowingRequest request) {
+
+        validateBorrowingRequest(request);
 
         Borrowing borrowing = new Borrowing();
 
@@ -59,7 +76,8 @@ public class BorrowingServiceImpl implements BorrowingService {
 
         Borrowing borrowing = borrowingRepository.findById(id)
                 .orElseThrow(() ->
-                        new RuntimeException("Borrowing not found with id: " + id));
+                        new BorrowingNotFoundException(
+                                "Borrowing not found with id: " + id));
 
         return mapToResponse(borrowing);
     }
@@ -67,9 +85,12 @@ public class BorrowingServiceImpl implements BorrowingService {
     @Override
     public BorrowingResponse updateBorrowing(Long id, BorrowingRequest request) {
 
+        validateBorrowingRequest(request);
+
         Borrowing borrowing = borrowingRepository.findById(id)
                 .orElseThrow(() ->
-                        new RuntimeException("Borrowing not found with id: " + id));
+                        new BorrowingNotFoundException(
+                                "Borrowing not found with id: " + id));
 
         borrowing.setMemberId(request.getMemberId());
         borrowing.setBookId(request.getBookId());
@@ -93,7 +114,7 @@ public class BorrowingServiceImpl implements BorrowingService {
     public void deleteBorrowing(Long id) {
 
         if (!borrowingRepository.existsById(id)) {
-            throw new RuntimeException(
+            throw new BorrowingNotFoundException(
                     "Borrowing not found with id: " + id);
         }
 
@@ -107,6 +128,50 @@ public class BorrowingServiceImpl implements BorrowingService {
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
+    }
+
+    private void validateBorrowingRequest(BorrowingRequest request) {
+
+        if (request.getMemberId() == null) {
+            throw new IllegalArgumentException("Member ID cannot be null");
+        }
+
+        if (request.getBookId() == null) {
+            throw new IllegalArgumentException("Book ID cannot be null");
+        }
+
+        if (request.getBookName() == null || request.getBookName().isBlank()) {
+            throw new IllegalArgumentException("Book name cannot be empty");
+        }
+
+        if (request.getBookPrice() == null ||
+                request.getBookPrice().compareTo(BigDecimal.ZERO) < 0) {
+
+            throw new IllegalArgumentException(
+                    "Book price cannot be negative");
+        }
+
+        if (request.getBorrowedDate() == null) {
+            throw new IllegalArgumentException(
+                    "Borrowed date cannot be null");
+        }
+
+        if (request.getDueDate() == null) {
+            throw new IllegalArgumentException(
+                    "Due date cannot be null");
+        }
+
+        if (request.getDueDate().isBefore(request.getBorrowedDate())) {
+            throw new IllegalArgumentException(
+                    "Due date cannot be before borrowed date");
+        }
+
+        if (request.getPenaltyPerDay() == null ||
+                request.getPenaltyPerDay().compareTo(BigDecimal.ZERO) < 0) {
+
+            throw new IllegalArgumentException(
+                    "Penalty per day cannot be negative");
+        }
     }
 
     private void calculatePenalty(Borrowing borrowing) {
@@ -160,4 +225,157 @@ public class BorrowingServiceImpl implements BorrowingService {
 
         return response;
     }
+
+    @Override
+    @Transactional
+    public BorrowingResponse borrowBook(
+            Long bookId,
+            String username) {
+
+        // Find logged-in user
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() ->
+                        new IllegalArgumentException(
+                                "User not found"));
+
+        // Make sure MEMBER has a linked Member
+        if (user.getMemberId() == null) {
+            throw new IllegalArgumentException(
+                    "User is not linked to a library member");
+        }
+
+        // Find book
+        Book book = bookRepository.findById(bookId)
+                .orElseThrow(() ->
+                        new IllegalArgumentException(
+                                "Book not found with id: " + bookId));
+
+        // Check availability
+        if (!Boolean.TRUE.equals(book.getAvailable())) {
+            throw new IllegalArgumentException(
+                    "Book is currently not available");
+        }
+
+        // Create borrowing
+        Borrowing borrowing = new Borrowing();
+
+        borrowing.setMemberId(user.getMemberId());
+        borrowing.setBookId(book.getId());
+        borrowing.setBookName(book.getTitle());
+
+        // Book entity currently doesn't have price
+        borrowing.setBookPrice(BigDecimal.ZERO);
+
+        LocalDate borrowedDate = LocalDate.now();
+
+        int allowedDays = 7;
+
+        borrowing.setBorrowedDate(borrowedDate);
+        borrowing.setAllowedDays(allowedDays);
+        borrowing.setDueDate(
+                borrowedDate.plusDays(allowedDays));
+
+        borrowing.setReturnedDate(null);
+
+        BigDecimal penaltyPerDay = BigDecimal.TEN;
+
+        borrowing.setPenaltyPerDay(penaltyPerDay);
+        borrowing.setExtraDays(0);
+        borrowing.setTotalPenalty(BigDecimal.ZERO);
+
+        borrowing.setStatus("BORROWED");
+
+        // Save borrowing
+        Borrowing savedBorrowing =
+                borrowingRepository.save(borrowing);
+
+        // Mark book unavailable
+        book.setAvailable(false);
+
+        bookRepository.save(book);
+
+        return mapToResponse(savedBorrowing);
+    }
+    @Override
+    @Transactional
+    public BorrowingResponse returnBook(
+            Long borrowingId,
+            String username) {
+
+        // Find logged-in user
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() ->
+                        new IllegalArgumentException(
+                                "User not found"));
+
+        if (user.getMemberId() == null) {
+            throw new IllegalArgumentException(
+                    "User is not linked to a library member");
+        }
+
+        // Find borrowing belonging to this member
+        Borrowing borrowing =
+                borrowingRepository
+                        .findByIdAndMemberId(
+                                borrowingId,
+                                user.getMemberId())
+                        .orElseThrow(() ->
+                                new IllegalArgumentException(
+                                        "Borrowing not found for this member"));
+
+        if ("RETURNED".equalsIgnoreCase(
+                borrowing.getStatus())) {
+
+            throw new IllegalArgumentException(
+                    "Book has already been returned");
+        }
+
+        // Find book
+        Book book = bookRepository.findById(
+                        borrowing.getBookId())
+                .orElseThrow(() ->
+                        new IllegalArgumentException(
+                                "Book not found with id: "
+                                        + borrowing.getBookId()));
+
+        // Set return information
+        borrowing.setReturnedDate(LocalDate.now());
+        borrowing.setStatus("RETURNED");
+
+        // Calculate late penalty
+        calculatePenalty(borrowing);
+
+        Borrowing updatedBorrowing =
+                borrowingRepository.save(borrowing);
+
+        // Make book available again
+        book.setAvailable(true);
+
+        bookRepository.save(book);
+
+        return mapToResponse(updatedBorrowing);
+    }
+
+    @Override
+    public List<BorrowingResponse> getMyBorrowings(
+            String username) {
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() ->
+                        new IllegalArgumentException(
+                                "User not found"));
+
+        if (user.getMemberId() == null) {
+            throw new IllegalArgumentException(
+                    "User is not linked to a library member");
+        }
+
+        return borrowingRepository
+                .findByMemberIdOrderByBorrowedDateDesc(
+                        user.getMemberId())
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
 }
+
