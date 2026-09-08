@@ -62,8 +62,7 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
 
-                .sessionManagement(session ->
-                        session.sessionCreationPolicy(
+                .sessionManagement(session -> session.sessionCreationPolicy(
                                 SessionCreationPolicy.STATELESS))
 
                 .authorizeHttpRequests(auth -> auth
@@ -74,25 +73,17 @@ public class SecurityConfig {
 
                         // BOOKS
                         // Both ADMIN and MEMBER can view books
-                        .requestMatchers(
-                                HttpMethod.GET,
-                                "/api/books/**")
+                        .requestMatchers(HttpMethod.GET, "/api/books/**")
                         .hasAnyRole("ADMIN", "MEMBER")
 
                         // Only ADMIN can create/update/delete books
-                        .requestMatchers(
-                                HttpMethod.POST,
-                                "/api/books/**")
+                        .requestMatchers(HttpMethod.POST, "/api/books/**")
                         .hasRole("ADMIN")
 
-                        .requestMatchers(
-                                HttpMethod.PUT,
-                                "/api/books/**")
+                        .requestMatchers(HttpMethod.PUT, "/api/books/**")
                         .hasRole("ADMIN")
 
-                        .requestMatchers(
-                                HttpMethod.DELETE,
-                                "/api/books/**")
+                        .requestMatchers(HttpMethod.DELETE, "/api/books/**")
                         .hasRole("ADMIN")
 
                         // MEMBERS
@@ -118,9 +109,7 @@ public class SecurityConfig {
 
                 .authenticationProvider(authenticationProvider())
 
-                .addFilterBefore(
-                        jwtAuthenticationFilter,
-                        UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
